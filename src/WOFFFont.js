@@ -19,14 +19,24 @@ export default class WOFFFont extends TTFFont {
   _getTableStream(tag) {
     let table = this.directory.tables[tag];
     if (table) {
-      this.stream.pos = table.offset;
-
       if (table.compLength < table.length) {
-        this.stream.pos += 2; // skip deflate header
+        // Compressed table - skip zlib header (2 bytes) and checksum (4 bytes)
+        this.stream.pos = table.offset + 2;
+        let deflateData = this.stream.readBuffer(table.compLength - 6);
         let outBuffer = new Uint8Array(table.length);
-        let buf = inflate(this.stream.readBuffer(table.compLength - 2), outBuffer);
+        let buf = inflate(deflateData, outBuffer);
+        
+        // Pad if inflated data is shorter than expected
+        if (buf.length < table.length) {
+          let padded = new Uint8Array(table.length);
+          padded.set(buf, 0);
+          return new r.DecodeStream(padded);
+        }
+        
         return new r.DecodeStream(buf);
       } else {
+        // Uncompressed table
+        this.stream.pos = table.offset;
         return this.stream;
       }
     }
