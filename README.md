@@ -261,6 +261,12 @@ Includes the given glyph object or glyph ID in the subset.
 
 Returns a `Uint8Array` containing the encoded font file.
 
+## Documentation
+
+Additional documentation and technical notes are available in the `docs/` directory:
+
+* [WOFF Subset Font Decompression Fix](./docs/woff-subset-fix.md) - Details about fixing issues with subset WOFF fonts, particularly when embedding fonts in PDFs. Explains zlib decompression handling and padding for subset fonts with incomplete table data.
+
 ## License
 
 MIT

@@ -133,7 +133,7 @@ zlib.error: Error -3 while decompressing data: incorrect data check
 - Ngay cả fonttools (reference implementation) cũng không thể đọc được
 - Fix của chúng ta phải xử lý cả trường hợp này
 
-## Tóm tắt logic giải thích cho team
+## Tóm tắt logic giải thích
 
 * Lỗi ban đầu: embed subset WOFF vào PDF bị lỗi vì:
   * Code cũ xử lý zlib chưa đúng (chỉ bỏ 2 byte header, không bỏ checksum).
