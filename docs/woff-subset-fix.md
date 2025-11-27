@@ -182,15 +182,139 @@ _getTableStream(tag) {
 
 ## Verification với ttx
 
-Để verify fix, có thể dùng `ttx` từ fonttools:
+Để verify fix, có thể dùng `ttx` từ fonttools. Cài đặt fonttools:
 
 ```bash
-# List tables
-ttx -l Georgia-Bold.woff
+# Cài đặt fonttools (cần Python 3)
+pip install fonttools
+
+# Hoặc trên macOS với Homebrew
+brew install fonttools
 ```
 
-Kết quả:
+### Quick check (các lệnh quan trọng nhất)
+
+```bash
+# ✅ List tables - luôn nên chạy đầu tiên
+ttx -l Georgia-Bold.woff
+
+# ✅ Check file type
+file Georgia-Bold.woff
+
+# ⚠️  Dump hmtx table - sẽ fail với file có vấn đề (đây là behavior mong đợi)
+ttx -t hmtx Georgia-Bold.woff 2>&1 | head -20
 ```
+
+### Các lệnh check chi tiết
+
+```bash
+# 1. List tất cả tables trong WOFF file
+ttx -l Georgia-Bold.woff
+
+# 2. Kiểm tra file có phải WOFF không
+file Georgia-Bold.woff
+# Kết quả mong đợi: "Web Open Font Format, TrueType, length X, version 1.0"
+
+# 3. Dump một table cụ thể (sẽ fail với file có vấn đề)
+ttx -t hmtx Georgia-Bold.woff
+
+# 4. Dump tất cả tables ra XML (sẽ có lỗi với file có vấn đề)
+ttx Georgia-Bold.woff
+
+# 5. Dump chỉ một số tables quan trọng
+ttx -t head -t hhea -t maxp Georgia-Bold.woff
+```
+
+### Check chi tiết các tables có vấn đề
+
+```bash
+# Check hmtx table (thường bị lỗi với subset fonts)
+ttx -t hmtx Georgia-Bold.woff 2>&1 | grep -i error
+
+# Check loca table
+ttx -t loca Georgia-Bold.woff 2>&1 | grep -i error
+
+# Check glyf table
+ttx -t glyf Georgia-Bold.woff 2>&1 | grep -i error
+
+# Check cmap table
+ttx -t cmap Georgia-Bold.woff 2>&1 | grep -i error
+```
+
+### So sánh với font gốc (nếu có)
+
+```bash
+# Nếu có font TTF gốc, so sánh số lượng tables
+ttx -l Georgia-Bold.ttf
+ttx -l Georgia-Bold.woff
+
+# So sánh kích thước các tables
+ttx -l Georgia-Bold.ttf | grep hmtx
+ttx -l Georgia-Bold.woff | grep hmtx
+```
+
+### Kiểm tra cấu trúc zlib
+
+```bash
+# Dùng Python để check cấu trúc zlib (nếu cần debug sâu hơn)
+python3 << 'EOF'
+import zlib
+import struct
+
+with open('Georgia-Bold.woff', 'rb') as f:
+    data = f.read()
+    
+# WOFF header: signature (4) + flavor (4) + length (4) + numTables (2) + ...
+# Sau đó là table directory entries
+# Mỗi entry: tag (4) + offset (4) + compLength (4) + origLength (4) + checksum (4)
+
+# Đọc WOFF header
+sig = data[0:4]
+print(f"Signature: {sig}")
+if sig == b'wOFF':
+    flavor = struct.unpack('>I', data[4:8])[0]
+    length = struct.unpack('>I', data[8:12])[0]
+    num_tables = struct.unpack('>H', data[12:14])[0]
+    print(f"Flavor: {flavor:08x}, Length: {length}, Num tables: {num_tables}")
+    
+    # Đọc table directory
+    offset = 44  # WOFF header size
+    for i in range(num_tables):
+        tag = data[offset:offset+4]
+        table_offset = struct.unpack('>I', data[offset+4:offset+8])[0]
+        comp_length = struct.unpack('>I', data[offset+8:offset+12])[0]
+        orig_length = struct.unpack('>I', data[offset+12:offset+16])[0]
+        checksum = struct.unpack('>I', data[offset+16:offset+20])[0]
+        
+        if tag == b'hmtx':
+            print(f"\nTable {tag.decode()}:")
+            print(f"  Offset: {table_offset}")
+            print(f"  Compressed length: {comp_length}")
+            print(f"  Original length: {orig_length}")
+            print(f"  Checksum: {checksum:08x}")
+            
+            # Thử decompress
+            table_data = data[table_offset:table_offset+comp_length]
+            if comp_length < orig_length:
+                try:
+                    # Skip zlib header (2 bytes) và checksum (4 bytes)
+                    deflate_data = table_data[2:comp_length-4]
+                    decompressed = zlib.decompress(deflate_data)
+                    print(f"  Decompressed length: {len(decompressed)}")
+                    print(f"  Expected length: {orig_length}")
+                    if len(decompressed) < orig_length:
+                        print(f"  ⚠️  WARNING: Decompressed data is shorter than expected!")
+                except Exception as e:
+                    print(f"  ❌ ERROR decompressing: {e}")
+        
+        offset += 20
+EOF
+```
+
+**Kết quả mong đợi:**
+
+```bash
+$ ttx -l Georgia-Bold.woff
 Listing table info for "Georgia-Bold.woff":
     tag     checksum    length    offset
     ----  ----------  --------  --------
@@ -211,17 +335,22 @@ Listing table info for "Georgia-Bold.woff":
     prep  0x3E64935E      1122     24140
 ```
 
-Khi thử dump table `hmtx`:
+**Khi thử dump table `hmtx` (sẽ báo lỗi với file có vấn đề):**
+
 ```bash
-ttx -t hmtx Georgia-Bold.woff
+$ ttx -t hmtx Georgia-Bold.woff
 ```
 
-Kết quả (ttx báo lỗi):
+**Kết quả (ttx báo lỗi - đây là behavior mong đợi với file có vấn đề):**
+
 ```
-ERROR: An exception occurred during the decompilation of the 'hmtx' table
-...
+ERROR: An exception occurred during the decompression of the 'hmtx' table
+Traceback (most recent call last):
+  ...
 zlib.error: Error -3 while decompressing data: incorrect data check
 ```
+
+**Lưu ý:** Lỗi này là **bình thường** với file `Georgia-Bold.woff` vì đây là subset font có vấn đề về cấu trúc zlib. Fix của chúng ta trong `fontkit` sẽ xử lý được file này, nhưng `ttx` (fonttools) thì không.
 
 **Giải thích:**
 - File `Georgia-Bold.woff` có vấn đề với cấu trúc zlib, nên `ttx` (fonttools) không thể đọc được.
