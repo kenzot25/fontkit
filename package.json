@@ -14,6 +14,8 @@
   "scripts": {
     "test": "run-s build mocha",
     "mocha": "mocha",
+    "test:georgia": "run-s build mocha:georgia",
+    "mocha:georgia": "cross-env FONT_PATH=Georgia-Bold.woff mocha test/subset.js",
     "build": "parcel build",
     "prepublish": "run-s clean trie:** build",
     "trie:data": "node src/opentype/shapers/generate-data.js",
@@ -90,6 +92,7 @@
     "c8": "^7.11.3",
     "codepoints": "^1.2.0",
     "concat-stream": "^2.0.0",
+    "cross-env": "^7.0.3",
     "mocha": "^10.0.0",
     "npm-run-all": "^4.1.5",
     "parcel": "2.0.0-canary.1713",
