@@ -20,9 +20,10 @@ export default class WOFFFont extends TTFFont {
     let table = this.directory.tables[tag];
     if (table) {
       if (table.compLength < table.length) {
-        // Compressed table - skip zlib header (2 bytes) and checksum (4 bytes)
-        this.stream.pos = table.offset + 2;
-        let deflateData = this.stream.readBuffer(table.compLength - 6);
+        // Compressed table - zlib format includes a 2-byte header
+        // The checksum is stored separately in the directory entry, not in the compressed data
+        this.stream.pos = table.offset + 2; // Skip zlib header (2 bytes)
+        let deflateData = this.stream.readBuffer(table.compLength - 2); // Read deflate data
         let outBuffer = new Uint8Array(table.length);
         let buf = inflate(deflateData, outBuffer);
         
